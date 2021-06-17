@@ -5,21 +5,21 @@ author: |
   | *email*: evanmuise@gmail.com
 date: "`r format(Sys.time(), '%Y-%B-%d')`"
 output:
-  bookdown::pdf_document2:
-    fig_caption: yes
-    number_sections: yes
-    toc: yes
-    keep_tex: true
-  bookdown::word_document2:
-    fig_caption: yes
-    number_sections: yes
-    toc: yes
-    keep_tex: true
   bookdown::html_document2:
     number_sections: yes
     theme: default
     toc: yes
     toc_float: yes
+  bookdown::word_document2:
+    fig_caption: yes
+    number_sections: yes
+    toc: yes
+    keep_tex: true
+  bookdown::pdf_document2:
+    fig_caption: yes
+    number_sections: yes
+    toc: yes
+    keep_tex: true
 bibliography: [bibliography.bib, packages.bib] 
 csl: remote-sensing-of-environment
 header-includes:
