@@ -47,6 +47,8 @@ library(tidymodels) # not use, but for citation in section
 library(ggmap)
 library(ggspatial)
 
+#
+
 # generate package citations
 loaded_pkgs = (.packages())
 base_pkgs = getOption("defaultPackages")
