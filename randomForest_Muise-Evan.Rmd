@@ -1,0 +1,257 @@
+---
+title: "Random Forest: A Conceptual Primer"
+author: | 
+  | Evan Muise
+  | *email*: evanmuise@gmail.com
+date: "`r format(Sys.time(), '%Y-%B-%d')`"
+output:
+  bookdown::pdf_document2:
+    fig_caption: yes
+    number_sections: yes
+    toc: yes
+    keep_tex: true
+  bookdown::word_document2:
+    fig_caption: yes
+    number_sections: yes
+    toc: yes
+    keep_tex: true
+  bookdown::html_document2:
+    number_sections: yes
+    theme: default
+    toc: yes
+    toc_float: yes
+bibliography: [bibliography.bib, packages.bib] 
+csl: remote-sensing-of-environment
+header-includes:
+- \usepackage{float}
+- \floatplacement{figure}{H}
+- \usepackage{longtable}
+- \usepackage{setspace}\onehalfspacing
+- \usepackage[left]{lineno}
+- \linenumbers
+- \usepackage[document]{ragged2e}
+abstract: Random Forest is a powerful ensemble machine learning algorithm suitable for both classification and regression problems. By combining bootstrap aggregation with decision trees and the random subspace method, Random Forest becomes a more accurate predictor than individual, or even bagged regression trees. In this overview, the major statistical concepts behind the algorithm are discussed, alongside assumptions and disgnostic procedures associated with the technique. A literature review is conducted concerning the use of the algorithm in various fields, including ecology, geography, and remote sensing. R packages and other software available to utilize the algorithm are presented, and a case study is conducted concerning the classification of broadleaf or coniferous trees using LiDAR data collected in 2015 at the UBC Vancouver Campus. The results found that vertical entropy and maximum height metrics derived from the point clouds are the most important predictors, however; low Cohen's kappa scores and classification accuracies lead to the authors recommending additional data to improve classification accuracy in future projects.
+---
+
+```{R, include = FALSE}
+# include all libraries required by the R chunks here
+library(knitr)
+library(here)
+library(bookdown)
+library(lidR)
+library(tidyverse)
+library(sf)
+library(randomForest)
+library(rpart)
+library(tidymodels) # not use, but for citation in section
+library(ggmap)
+library(ggspatial)
+
+# generate package citations
+loaded_pkgs = (.packages())
+base_pkgs = getOption("defaultPackages")
+contrib_pkgs = loaded_pkgs[!(loaded_pkgs %in% base_pkgs)]
+pkgs_file = here::here("packages.bib")
+knitr::write_bib(contrib_pkgs, pkgs_file)
+```
+
+```{R, echo = FALSE, warnings = FALSE, message = FALSE}
+# kappa table for results section, placing here so there's less cells in the results section
+# less confusing for me to work with
+kappa <-  read_csv(here::here("outputs", "kappa.csv"))
+testing_kappa <- kappa %>%
+  filter(label == "Testing") %>%
+  pull(kappa)
+training_kappa <- kappa %>%
+  filter(label == "Training") %>%
+  pull(kappa)
+
+auc <- read_csv(here::here("outputs", "auc.csv")) %>%
+  pull(auc_values) %>% unique()
+
+# i could pull these to a list instead, but frankly since its only two im fine with just copy pasting the code (AND HADLEY SAID I COULD IF ITS ONLY TWICE)
+```
+
+\newpage
+
+# Introduction
+
+Random Forest is a powerful algorithm developed by Breiman [-@breiman2001] for both classification and regression. It is an incredibly robust machine learning algorithm which is commonly used in many fields of study, including remote sensing [@belgiu2016; @chan2008; @pal2005; @rodriguez-galiano2012], ecological modelling [@death2007; @cutler2007], and economic geology [@rodriguez-galiano2015], amongst many other fields. Random Forest is a combination of classification and regression trees (CART), and bagging (bootstrap aggregation), and is considered an ensemble method [@breiman2001]. This paper will delve into the statistical background behind the components of the Random Forest algorithm, identify assumptions and diagnostic procedures, discuss examples of the algorithm's usage in peer-reviewed literature, identify available packages for implementing the algorithm, and finally, demonstrate an example usage of the algorithm.
+
+# Statistical Concepts
+
+## Classification and Regression Trees
+
+Classification and regression trees (hereafter CART; also referred to as decision trees) are predictive models that predict output features by creating splits in various attributes in the dataset [@rokach2007]. These splits create nodes, labeled with input features (example shown in Figure \@ref(fig:classtree)). In the case of a continuous input variable, the node will be split based on being higher or lower than a value in the input variable (e.g. $zmax < 21.02$ at the first node in Figure \@ref(fig:classtree)) In the opposite case, where the input variable is a class (such as land cover), the node will be based on one value versus all others. CART models are scale invariant, can ignore irrelevant features, and are easily interpretable by the end user [@breiman2017]. In addition, CART models can handle highly nonlinear and conditional relationships. However, not all is perfect with these classification trees. They often overfit the model leading to low bias and high variance. Due to this tendency to overfit, methods such as bagging and boosting are frequently employed to aid with these problems [@sutton2005a].
+
+```{r classtree, fig.cap = fig_cap, echo = FALSE}
+# I think i prefer this method of saving pdfs to an outputs folder
+# over actually processing within the .rmd document
+
+fig_cap <- paste("An example pruned classification tree with 7 nodes predicting broadleaf (B) or coniferous (C) class in trees at the UBC Vancouver Campus")
+include_graphics(here::here("outputs", "cart.pdf"))
+```
+
+## Bagging (Bootstrap Aggregation)
+
+Bootstrapping is a resampling method for calculating statistics on a dataset. The specific methodology is to resample with replacement in order to mimic the sampling process. This involves taking a dataset, and selecting the same number of observations, but allowing for the same observation to be reobserved. This allows users to derive estimates of variance and confidence intervals for a single dataset [@breiman1996].
+
+Bagging, or bootstrap aggregation, occurs when a bootstrap resampled dataset is used to create a model multiple times. The results from this **ensemble** of models is aggregated to generate a predictor from the many models [@breiman1996]. This has previosuly been applied to CART models using all input features in the form of bagged regression trees [@sutton2005a]. Bagging does not reweight the input models to improve accuracy; a simple vote or average is used from all of the created models [@sutton2005a]. This ensemble method can have improved accuracy over a single CART model. However, while bagged models may have higher accuracy, the same predictors can dominate the models, reducing the potential maximum accuracy [@ho2002].
+
+## Random Forest
+
+While bagged CART models can be a powerful method for classification and regression, with marked improvements over non-ensemble CART models, there is still room for improvement. When strong predictor features are present in the data, it is entirely possible for these few strong predictors to dominate the ensemble [@ho2002]. Where Random Forest differs from bagged regression trees is in the use of the Random Subspace method, which uses a subset of all potential input features to train each tree. The Random Subspace method prevents these strong predicting features from dominating the resultant model [@tinkamho1998].
+
+In summary, the Random Forest algorithm creates many classification and regression tree models based off a bootstrap of the dataset **and** features [@breiman2001]. These models are then aggregated into an ensemble model by averaging the model outputs (regression), or via votes (classification). This is a powerful advancement from simple CART models, which frequently overfit, and on bagged CART models, which may become dominated by strong predicting features [@breiman2001; @tinkamho1998].
+
+# Assumptions and Diagnostic Procedures
+
+## Assumptions
+
+One of the strengths of Random Forest is the algorithm's robustness. No formal distributions need to be followed, and the algorithm can handle both categorical and numerical data, which can be skewed or multi-modal. The algorithm's robustness leads to the Random Forest being incredibly powerful, and useful in many circumstances for both classification and regression.
+
+## Diagnostics
+
+### Out of Bag Error
+
+The out of bag error is a validation method specifically applied to algorithms making using of the bagging approach outlined in Section \@ref(bagging-bootstrap-aggregation). For each tree, the model is trained on those samples that are within the bootstrap, and then tested on those that were not included on the bootstrap for each tree. Those that are not included in the bootstrap are termed the "Out of Bag sample", and the error is calculated for each tree as the number of correctly predicted rows from the out of bag sample. It is recorded as each new tree is generated and the ensemble predictions change. An example of how out of bag error changes as more trees are produced and added to the ensemble model can be found in Section \@ref(technique-application) in Figure \@ref(fig:error-lines).
+
+### Variable Importance
+
+Due to the high volume of variables potentially included in a Random Forest model, it can be relevant to the researcher to examine which variables contribute most to the model. This can be accomplished due to the recording of the Out of Bag error after each tree is generated. Each instantaneous (after each tree) error, can be compared to those found after the final trees are produced. This generates a score which can be used to rank the variables. Those with larger scores are considered more important than those with smaller scores [@zhu2015]. It should be noted that there is a bias in Random Forest to favour categorical variables with high numbers of levels, however this can be overcome using other variants on the Random Forest algorithm [@toloi2011; @altmann2010].
+
+### Cohen's Kappa
+
+Cohen's kappa ($k$) is a measurement of categorical accuracy. It can be used with the Random Forest algorithm when used a classifier, but not as a regressor. $k$ includes the possibility of chance agreement, rendering it a more robust measurement than percent agreement. It is calculated using the confusion matrix of a classification algorithm.
+
+```{=tex}
+\begin{equation}
+  k = \frac{p_o - p_e}{1 - p_e} = 1 - \frac{1 - p_o}{1 - p_e}
+  (\#eq:kappa-eq)
+\end{equation}
+```
+The calculation for Cohen's Kappa is shown in Equation \@ref(eq:kappa-eq), where $p_o$ is the observed agreement, and $p_e$ is the hypothetical probability of chance agreement [@cohen1960]. More detailed equations and calculations used in Cohen's kappa for nominal data of many classes can be found in Cohen [-@cohen1960].
+
+### Receiver Operating Characteristic Area Under the Curve
+
+The Receiver Operating Characteristic (ROC) is a diagnostic plot that is used to examine binary classifiers, such as the one used in Section \@ref(technique-application) in Figure \@ref(fig:roc-auc). The ROC plots the false positive rate against the true positive rate for a binary classifier. This shows the performance of the model at all classification thresholds.
+
+The Area Under the Curve (AUC) for the ROC is another diagnostic included in this plot. Higher AUC values are desirable, with a perfect model having an AUC of 1.0. The AUC is scale-invariant, and measures prediction quality regardless of the classification threshold [@fawcett2006].
+
+### Regression Diagnostics
+
+Diagnostic procedures for operating Random Forest as a regression algorithm are similar to other regression diagnostics. The $R^2$ is commonly used alongside various error statistics such as Root Mean Square Error, Mean Absolute Error, among others. These can be compared between model parameters or other types of regression.
+
+# Literature Review
+
+Random Forest is frequently used as a classification algorithm in the geographical sciences [@rodriguez-galiano2012; @belgiu2016]. It is often used in land-cover classifications [@rodriguez-galiano2012; @belgiu2016], due to the algorithm's robustness when supplied with highly dimensional data. In addition, the high processing speeds and ability to manage multi-modal data afforded by the algorithm led to its widespread adoption [@rodriguez-galiano2012], alongside other algorithms such as Support Vector Machines or Artificial Neural Networks [@belgiu2016]. While boosting based ensemble methods can produce better accuracy results, they can be sensitive to outliers and overfit, in addition to requiring more computational resources than bagging based methods, such as Random Forest [@xu2014]. These factors have led to Random Forest becoming a leading algorithm for remote sensing classification problems.
+
+In ecology, Random Forest is frequently used for ecological modelling and prediction [@death2007], as well as classification [@cutler2007]. Hollister et al. [-@hollister2016] used Random Forest to compare input models (GIS and non-GIS based) for modelling lake trophic state across the continental United States. Their analysis is fully reproducible and is available on github. Cutler [-@cutler2007] conducted a review on the usage of Random Forest for classification in ecology, and also gave examples on the method, using it to examine invasive plant species, rare lichen presence, and identify bird nesting sites. Prasad [-@prasad2006] used Random Forest to predict vegetation maps under various climate scenarios, and found that Random Forest performed better when examining the Kappa statistics, correlation estimates, and spatial distribution of importance values. Authors are finding that Random Forest is a suitable method when examining classification and regression modelling problems in ecology [@death2007; @cutler2007].
+
+In the geographic sciences, Random Forest is frequently used to map nutrients and water [@grimm2008; @naghibi2016; @rahmati2016]. In Iran, groundwater potential has been examined by both Naghibi et al. [-@naghibi2016], and Rahmati et al. [-@rahmati2016] using Random Forest in recent years. Soil information, including soil organic carbon [-@grimm2008] and soil class predictions @brungard2015 have also been studied using the alogrithm. These studies are not only using Random Forest for prediction and modelling, but are also using the algorithm to assess variable importance. Random Forest is commonly being used as a predictor for subsurface mapping in the soil sciences, and has been found to be a useful tool in this field as well [@grimm2008; @brungard2015; @naghibi2016; @rahmati2016].
+
+# Available Software Implementations
+
+Due to Random Forest' prevalence as a classification and regression algorithm, it is frequently used and developed for new languages and software packages. While not an exhaustive list, included here is a starting point for running the algorithm in various programming languages and tools.
+
+In R, there is the package **randomForest** [@R-randomForest], as well as the implementation in **tidymodels** [@R-tidymodels]. Other software and programming languages also have implementations of the Random Forest algorithm. Notably, **Scikit-learn** [@scikit-learn] is a package devoted to machine learning in Python which includes the Random Forest ensemble algorithm. Other programming langauges such as MATLAB also include a Random Forest tool [@matlab]. Random Forest is implemented in the ArcGIS software as the Forest-based Classification and Regression tool [@esri].
+
+# Technique Application
+
+## Methods
+
+### Data
+
+LiDAR data was collected over the University of British Columbia's Point Grey Campus in 2015 [@AB2/KET75X2015a]. The primary goals of this collection was to obtain an accurate digital terrain model of the Point Grey cliff face for geomorphologic modelling. A secondary goal was to generate elevation layers to examine buildings and trees on the campus for landscape and urban planning.
+
+Between 2005 and 2010, 2937 trees were measured on the Point Grey campus. The information included alongside the majority of these measurements were genus, date updated, and location. Each genus was identified as broadleaf or coniferous for the Random Forest model to predict. This dataset is available from the UBC Faculty of Forestry teamshare drive, and is not publicly available. Building footprints were collected from the Vancouver Open Data portal [@cityofvancouver2009].
+
+### Study Area
+
+A study area of a single LiDAR tile on the UBC Point Grey Campus was used (Figure \@ref(fig:study-area)). This was done to reduce processing time. A total of 2408 trees were identified in the study area.
+
+```{r, fig.cap = full_cap, echo = FALSE}
+
+fig_cap <- paste("Location of the LiDAR tile on UBC Vancouver Campus.")
+fig_lab <- "(\\#fig:study-area)"
+full_cap <- paste(fig_lab, fig_cap)
+include_graphics(here::here("outputs", "map.pdf"))
+```
+
+### Pre-processing
+
+The single tile of the LiDAR data acquired over UBC was filtered for duplicate points, and normalized using functions within the lidR package [@R-lidR]. These normalized points were used to create a canopy height model (CHM) using the pitfree algorithm [@khosravipour2014]. This CHM was then masked for buildings to reduce the number of erroneous tree crowns created. Treetops were then delineated using the lmf algorithm inspired by Popescu et al. [-@popescu2004]. Trees were then segmented in the point cloud using the Dalponte [-@dalponte2016] algorithm for tree segmentation, with a minimum pixel height for trees of four. The segmented trees then had their crowns delineated, and standard lidR metrics were produced for each crown (see the [lidR documentation](https://rdrr.io/cran/lidR/man/stdmetrics.html) for details). The tree dataset was then spatially joined to the nearest centroid of each crown, in order to create predictor variables for each tree measured on the UBC campus.
+
+### Analysis
+
+The trees dataset was split into training and testing portions at 50% of the dataset each. Any tree without genus identification was removed from the dataset, as well as any trees with missing values in any variable. Intensity statistics created by the standard lidR metrics were removed, but all others were used as predictors. This include height statistics, quantiles, percentiles, and number of pulses returned. A total of 44 predictor variables were created.
+
+A Random Forest classifier was created using 500 trees with two resample variables per tree. Importance values were retained. Confusion matrices were created for both the testing and training set, and used to calculate Cohen's kappa $k$. ROC curves were created for each of the potential classes, and the area under the curve was calculated for each. After each tree, out of bag and class error were calculated.
+
+## Results and Discussion
+
+Figure \@ref(fig:error-lines) shows the error rates as trees are generated for each class, as well as the out of bag error. As additional trees are generated, error in broadleaf and out of bag categories is reduced. After approximately 100 trees, the error in broadleaf and out of bag categories stabilizes. Conversely, as the number of trees increases, coniferous tree error increases, until a much larger number of trees have been created. This could potentially be caused by the large amount of variation in tree canopy between species within each division (broadleaf and coniferous), and would need to be investigated further with additionally ancillary data to improve accuracy further.
+
+```{r, fig.cap = full_cap, echo = FALSE}
+
+fig_cap <- paste("Error rates for coniferous, broadleaf, and out of bag samples as trees are generated in the Random Forest algorithm.")
+fig_lab <- "(\\#fig:error-lines)"
+full_cap <- paste(fig_lab, fig_cap)
+include_graphics(here::here("outputs", "trees_error.pdf"))
+```
+
+Confusion matrices were generated for both training and testing datasets after all trees were produced (Table \@ref(tab:confusion-matrices)). Cohen's kappa was calculated for both training and testing datasets, and was found to be `r testing_kappa` and `r training_kappa`, respectively. With a relatively low $k$ in both training and testing, it is likely that additional data would need to be included to improve classification accuracy.
+
+```{r, echo = FALSE, warnings = FALSE, message = FALSE}
+
+table_lab <- "(\\#tab:confusion-matrices)"
+table_cap <- "Confusion matrices for testing (a) and training (b) datasets using the Random Forest classifier on LiDAR data on the UBC Vancouver Campus."
+full_cap <- paste0(table_lab, table_cap)
+testing_table <- read_csv(here::here("outputs", "testing_table.csv"))
+training_table <- read_csv(here::here("outputs", "training_table.csv"))
+names(testing_table) <- c("a", "Broadleaf", "Coniferous")
+names(training_table) <- c("b", "Broadleaf", "Coniferous")
+
+knitr::kable(list(testing_table, training_table), align = 'cc', booktabs = T,
+             caption = full_cap, longtable = T)
+
+```
+
+```{r, fig.cap = full_cap, echo = FALSE}
+
+fig_cap <- paste("Receiver operating characteristic curve for each classification performed by the Random Forest algorithm on trees in the UBC Vancouver Campus.")
+fig_lab <- "(\\#fig:roc-auc)"
+full_cap <- paste(fig_lab, fig_cap)
+include_graphics(here::here("outputs", "roc.pdf"))
+```
+
+The ROC curve generated for each class shows that the classifier is better than randomness for both broadleaf and coniferous classifications (Figure \@ref(fig:roc-auc)). Identical area under the curve values were found (`r auc`), as it is a binary classification. While the classifier is better than the random 1:1 line shown in Figure \@ref(fig:roc-auc), the confusion matrices (Table \@ref(tab:confusion-matrices) and kappa scores were not suitable to be highly accurate for this classification.
+
+```{r, fig.cap = full_cap, echo = FALSE}
+
+fig_cap <- paste("Variable important plot for classification of broadleaf or coniferous trees on the UBC Vancouver Campus.")
+fig_lab <- "(\\#fig:varimpplot)"
+full_cap <- paste(fig_lab, fig_cap)
+include_graphics(here::here("outputs", "varimpplot.pdf"))
+```
+
+Variable importance was calculated for each input variable, and the top 20 are shown in Figure \@ref(fig:varimpplot). The highest importance variables are those associated with entropy and maximum height ($zentropy, zq95, zmax$, etc). As a metric of vertical diversity and evenness, entropy is a complex metric which is not easily interpretable. Other metrics related to height had high variable importance, and the Gini was decreased similarly with these metrics (Figure \@ref(fig:varimpplot)).
+
+## Conclusion
+
+An introduction to the statistical basis of Random Forest was discussed. Important assumptions and diagnostic procedures were identified. A literature review was conducted concerning the usage of Random Forest in geographic and environmental sciences, with a focus on remote sensing, ecology, and geography. R packages and other software packages were identified, and a small case study was conducted.
+
+The case study has shown a workflow for utilizing the lidR [@R-lidR] and randomForest [@R-randomForest] R packages to conduct a species identification workflow. Classification diagnostics were assessed, including variable importance, out of bag error, Cohen's Kappa ($k$), ROC and AUC. Accuracy could be improved by including additional predictors, such as multispectal LiDAR [@budei2018a], geographic ancilliary variables such as slope, elevation, aspect, or soil data [@hollister2016]. Ways to improve the accuracy and validation of the method in this context could involve looking for spatial autocorrelation in the accuracy results, or applying k-fold cross validation to the model.
+
+# Acknowledgements {.unnumbered}
+
+The following packages were used in the production of this document: **base** [@R-base], **lidR** [@R-lidR], **raster** [@R-raster], **sp** [@R-sp], **ggmap** [@R-ggmap], **ggspatial** [@R-ggspatial], **randomForest** [@R-randomForest], **rpart** [@R-rpart], **sf** [@R-sf], **tidyverse** [@R-tidyverse], **knitr** [@R-knitr], **bookdown** [@R-bookdown], and **here** [@R-here].
+
+In addition, I would like to thank Dr. Moore for his help throughout GEOB503, and for the excellent primer on the bookdown package.
+
+\newpage
+
+# References {.unnumbered}
+
+::: {#refs}
+:::
