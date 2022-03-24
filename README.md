@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 Random Forest: A Conceptual Primer
 ================
 Evan Muise  
