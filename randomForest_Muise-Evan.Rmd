@@ -4,7 +4,9 @@ author: |
   | Evan Muise
   | *email*: evanmuise@gmail.com
 date: "`r format(Sys.time(), '%Y-%B-%d')`"
-output:
+output: 
+  github_document:
+    number_sections: yes
   bookdown::html_document2:
     number_sections: yes
     theme: default
