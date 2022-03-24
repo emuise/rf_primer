@@ -36,10 +36,10 @@ Classification and regression trees (hereafter CART; also referred to as
 decision trees) are predictive models that predict output features by
 creating splits in various attributes in the dataset (Rokach and Maimon,
 2007). These splits create nodes, labeled with input features (example
-shown in Figure @ref(fig:classtree)). In the case of a continuous input
+shown in @fig:classtree). In the case of a continuous input
 variable, the node will be split based on being higher or lower than a
 value in the input variable (e.g. *z**m**a**x* \< 21.02 at the first
-node in Figure @ref(fig:classtree)) In the opposite case, where the
+node in @fig:classtree) In the opposite case, where the
 input variable is a class (such as land cover), the node will be based
 on one value versus all others. CART models are scale invariant, can
 ignore irrelevant features, and are easily interpretable by the end user
@@ -52,7 +52,7 @@ bagging and boosting are frequently employed to aid with these problems
 
 ![An example pruned classification tree with 7 nodes predicting
 broadleaf (B) or coniferous (C) class in trees at the UBC Vancouver
-Campus](D:/Files/Sync/Non-Masters/website2/outputs/cart.pdf)
+Campus](outputs/cart.pdf)
 
 ## 2.2 Bagging (Bootstrap Aggregation)
 
@@ -114,7 +114,7 @@ regression.
 
 The out of bag error is a validation method specifically applied to
 algorithms making using of the bagging approach outlined in Section
-@ref(bagging-bootstrap-aggregation). For each tree, the model is trained
+[2.2](#22-bagging-bootstrap-aggregation)]. For each tree, the model is trained
 on those samples that are within the bootstrap, and then tested on those
 that were not included on the bootstrap for each tree. Those that are
 not included in the bootstrap are termed the “Out of Bag sample”, and
@@ -122,8 +122,8 @@ the error is calculated for each tree as the number of correctly
 predicted rows from the out of bag sample. It is recorded as each new
 tree is generated and the ensemble predictions change. An example of how
 out of bag error changes as more trees are produced and added to the
-ensemble model can be found in Section @ref(technique-application) in
-Figure @ref(fig:error-lines).
+ensemble model can be found in Section [6](#6-technique-application)] in
+@fig:error-lines.
 
 ### 3.2.2 Variable Importance
 
@@ -159,7 +159,7 @@ in Cohen’s kappa for nominal data of many classes can be found in Cohen
 
 The Receiver Operating Characteristic (ROC) is a diagnostic plot that is
 used to examine binary classifiers, such as the one used in Section
-@ref(technique-application) in Figure @ref(fig:roc-auc). The ROC plots
+[6](#6-technique-application) in @fig:roc-auc. The ROC plots
 the false positive rate against the true positive rate for a binary
 classifier. This shows the performance of the model at all
 classification thresholds.
@@ -266,11 +266,11 @@ collected from the Vancouver Open Data portal (City of Vancouver, 2009).
 ### 6.1.2 Study Area
 
 A study area of a single LiDAR tile on the UBC Point Grey Campus was
-used (Figure @ref(fig:study-area)). This was done to reduce processing
+used (@fig:study-area). This was done to reduce processing
 time. A total of 2408 trees were identified in the study area.
 
-![(#fig:study-area) Location of the LiDAR tile on UBC Vancouver
-Campus.](D:/Files/Sync/Non-Masters/website2/outputs/map.pdf)
+![Location of the LiDAR tile on UBC Vancouver
+Campus.](outputs/map.pdf){#fig:study-area}
 
 ### 6.1.3 Pre-processing
 
@@ -309,7 +309,7 @@ After each tree, out of bag and class error were calculated.
 
 ## 6.2 Results and Discussion
 
-Figure @ref(fig:error-lines) shows the error rates as trees are
+@fig:error-lines shows the error rates as trees are
 generated for each class, as well as the out of bag error. As additional
 trees are generated, error in broadleaf and out of bag categories is
 reduced. After approximately 100 trees, the error in broadleaf and out
@@ -320,12 +320,12 @@ large amount of variation in tree canopy between species within each
 division (broadleaf and coniferous), and would need to be investigated
 further with additionally ancillary data to improve accuracy further.
 
-![(#fig:error-lines) Error rates for coniferous, broadleaf, and out of
+![Error rates for coniferous, broadleaf, and out of
 bag samples as trees are generated in the Random Forest
-algorithm.](D:/Files/Sync/Non-Masters/website2/outputs/trees_error.pdf)
+algorithm.](outputs/trees_error.pdf){#fig:error-lines}
 
 Confusion matrices were generated for both training and testing datasets
-after all trees were produced (Table @ref(tab:confusion-matrices)).
+after all trees were produced (@tab:confusion-matrices).
 Cohen’s kappa was calculated for both training and testing datasets, and
 was found to be 0.4818027 and 0.4265049, respectively. With a relatively
 low *k* in both training and testing, it is likely that additional data
@@ -335,42 +335,39 @@ would need to be included to improve classification accuracy.
 |:----------:|:---------:|:----------:|
 | Broadleaf  |    716    |    161     |
 | Coniferous |    61     |    174     |
-
-(#tab:confusion-matrices)Confusion matrices for testing (a) and training
-(b) datasets using the Random Forest classifier on LiDAR data on the UBC
-Vancouver Campus.
-
 |     b      | Broadleaf | Coniferous |
 |:----------:|:---------:|:----------:|
 | Broadleaf  |    707    |     66     |
 | Coniferous |    179    |    160     |
+: Confusion matrices for testing (a) and training
+(b) datasets using the Random Forest classifier on LiDAR data on the UBC
+Vancouver Campus.{#tab:confusion-matrices}
 
-![(#fig:roc-auc) Receiver operating characteristic curve for each
+![Receiver operating characteristic curve for each
 classification performed by the Random Forest algorithm on trees in the
 UBC Vancouver
-Campus.](D:/Files/Sync/Non-Masters/website2/outputs/roc.pdf)
+Campus.](outputs/roc.pdf){#fig:roc-auc}
 
 The ROC curve generated for each class shows that the classifier is
 better than randomness for both broadleaf and coniferous classifications
-(Figure @ref(fig:roc-auc)). Identical area under the curve values were
+(@fig:roc-auc). Identical area under the curve values were
 found (0.8283832), as it is a binary classification. While the
-classifier is better than the random 1:1 line shown in Figure
-@ref(fig:roc-auc), the confusion matrices (Table
-@ref(tab:confusion-matrices) and kappa scores were not suitable to be
+classifier is better than the random 1:1 line shown in 
+@fig:roc-auc, the confusion matrices (@tab:confusion-matrices) and kappa scores were not suitable to be
 highly accurate for this classification.
 
-![(#fig:varimpplot) Variable important plot for classification of
+![Variable important plot for classification of
 broadleaf or coniferous trees on the UBC Vancouver
-Campus.](D:/Files/Sync/Non-Masters/website2/outputs/varimpplot.pdf)
+Campus.](outputs/varimpplot.pdf){#fig:varimpplot}
 
 Variable importance was calculated for each input variable, and the top
-20 are shown in Figure @ref(fig:varimpplot). The highest importance
+20 are shown in @fig:varimpplot. The highest importance
 variables are those associated with entropy and maximum height
 (*z**e**n**t**r**o**p**y*, *z**q*95, *z**m**a**x*, etc). As a metric of
 vertical diversity and evenness, entropy is a complex metric which is
 not easily interpretable. Other metrics related to height had high
 variable importance, and the Gini was decreased similarly with these
-metrics (Figure @ref(fig:varimpplot)).
+metrics (@fig:varimpplot).
 
 ## 6.3 Conclusion
 
